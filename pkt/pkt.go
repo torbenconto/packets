@@ -6,6 +6,7 @@ import (
 	"fmt"
 	_packets "github.com/torbenconto/packets"
 	"io"
+	"time"
 )
 
 const (
@@ -62,8 +63,7 @@ func Write(w io.Writer, packets []_packets.Packet) error {
 	return nil
 }
 
-// ReadPKT reads packets from a .pkt file.
-func Read(r io.Reader) ([]_packets.Packet, error) {
+func Read(r io.Reader, newPacket func() _packets.Packet) ([]_packets.Packet, error) {
 	// Read and validate the header
 	header := make([]byte, HeaderLength)
 	_, err := r.Read(header)
@@ -84,15 +84,25 @@ func Read(r io.Reader) ([]_packets.Packet, error) {
 	// Read packets
 	var packets []_packets.Packet
 	for i := uint32(0); i < packetCount; i++ {
-		var pkt _packets.Packet
 		var packetLen uint32
 
-		ts := pkt.GetTimestamp()
+		// Use the provided factory function to create a new Packet instance
+		pkt := newPacket()
+		if pkt == nil {
+			return nil, fmt.Errorf("newPacket() returned nil")
+		}
 
 		// Read timestamp (big-endian, 8 bytes)
+		var ts int64
 		err = binary.Read(r, binary.BigEndian, &ts)
 		if err != nil {
 			return nil, err
+		}
+
+		// Set the timestamp in the packet
+		basePkt, ok := pkt.(interface{ SetTimestamp(time.Time) })
+		if ok {
+			basePkt.SetTimestamp(time.Unix(ts, 0))
 		}
 
 		// Read packet length (big-endian, 4 bytes)
@@ -108,11 +118,13 @@ func Read(r io.Reader) ([]_packets.Packet, error) {
 			return nil, err
 		}
 
-		err := pkt.Deserialize(packetBytes)
+		// Deserialize packet
+		err = pkt.Deserialize(packetBytes)
 		if err != nil {
 			return nil, err
 		}
 
+		// Append to packet slice
 		packets = append(packets, pkt)
 	}
 
