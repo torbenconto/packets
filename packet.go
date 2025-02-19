@@ -1,6 +1,8 @@
 package packets
 
-import "time"
+import (
+	"time"
+)
 
 type PacketBase interface {
 	GetTimestamp() time.Time
@@ -13,15 +15,15 @@ type BasePacket struct {
 	PacketCode uint16    `json:"packet_code" xml:"packet_code"`
 }
 
-func (bp BasePacket) GetTimestamp() time.Time {
+func (bp *BasePacket) GetTimestamp() time.Time {
 	return bp.Timestamp
 }
 
-func (bp BasePacket) SetTimestamp(timestamp time.Time) {
+func (bp *BasePacket) SetTimestamp(timestamp time.Time) {
 	bp.Timestamp = timestamp
 }
 
-func (bp BasePacket) GetCode() uint16 {
+func (bp *BasePacket) GetCode() uint16 {
 	return bp.PacketCode
 }
 

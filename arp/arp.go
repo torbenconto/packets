@@ -11,7 +11,7 @@ import (
 )
 
 type Packet struct {
-	packets.BasePacket
+	*packets.BasePacket
 	Header ethernet.Header `json:"header" xml:"header"`
 
 	HardwareType ethernet.Hardware_t `json:"hardware_type" xml:"hardware_type"`
@@ -31,7 +31,7 @@ type Packet struct {
 
 func NewPacket() *Packet {
 	return &Packet{
-		BasePacket: packets.BasePacket{
+		BasePacket: &packets.BasePacket{
 			Timestamp:  time.Now(),
 			PacketCode: packets.ARPCODE,
 		},
