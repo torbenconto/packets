@@ -31,18 +31,22 @@ func Write(w io.Writer, packets []_packets.Packet) error {
 		return err
 	}
 
-	// Write each packet (big-endian format)
 	for _, pkt := range packets {
+		if pkt == nil {
+			return fmt.Errorf("nil packet encountered")
+		}
+
 		var buf bytes.Buffer
 
-		// Write timestamp (big-endian, 8 bytes)
+		// Write timestamp
 		binary.Write(&buf, binary.BigEndian, pkt.GetTimestamp())
 
 		packetBytes, err := pkt.Serialize()
 		if err != nil {
 			return err
 		}
-		// Write packet length (big-endian, 4 bytes)
+
+		// Write packet length
 		packetLen := uint32(len(packetBytes))
 		binary.Write(&buf, binary.BigEndian, packetLen)
 
