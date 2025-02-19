@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/torbenconto/packets"
 	"github.com/torbenconto/packets/ethernet"
 	"net"
+	"time"
 )
 
 type Packet struct {
+	packets.PacketBase
 	Header ethernet.Header `json:"header" xml:"header"`
 
 	HardwareType ethernet.Hardware_t `json:"hardware_type" xml:"hardware_type"`
@@ -24,6 +27,14 @@ type Packet struct {
 
 	SourceMAC net.HardwareAddr `json:"source_mac" xml:"source_mac"`
 	SourceIP  net.IP           `json:"source_ip" xml:"source_ip"`
+}
+
+func NewPacket() *Packet {
+	return &Packet{
+		PacketBase: packets.BasePacket{
+			Timestamp: time.Now(),
+		},
+	}
 }
 
 func (p *Packet) Serialize() ([]byte, error) {
