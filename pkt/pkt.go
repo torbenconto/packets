@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	_packets "github.com/torbenconto/packets"
+	"github.com/torbenconto/packets/arp"
 	"io"
 	"time"
 )
@@ -39,6 +40,9 @@ func Write(w io.Writer, packets []_packets.Packet) error {
 
 		var buf bytes.Buffer
 
+		// Write type
+		binary.Write(&buf, binary.BigEndian, pkt.GetCode())
+
 		// Write timestamp
 		binary.Write(&buf, binary.BigEndian, pkt.GetTimestamp())
 
@@ -63,7 +67,7 @@ func Write(w io.Writer, packets []_packets.Packet) error {
 	return nil
 }
 
-func Read(r io.Reader, newPacket func() _packets.Packet) ([]_packets.Packet, error) {
+func Read(r io.Reader) ([]_packets.Packet, error) {
 	// Read and validate the header
 	header := make([]byte, HeaderLength)
 	_, err := r.Read(header)
@@ -85,12 +89,29 @@ func Read(r io.Reader, newPacket func() _packets.Packet) ([]_packets.Packet, err
 	var packets []_packets.Packet
 	for i := uint32(0); i < packetCount; i++ {
 		var packetLen uint32
+		var packetType uint16
+
+		// Read packet type
+		err = binary.Read(r, binary.BigEndian, &packetType)
+		if err != nil {
+			return nil, err
+		}
+
+		var packet _packets.Packet
+		switch packetType {
+		case _packets.ARPCODE:
+			packet = arp.NewPacket()
+		}
+
+		if packet == nil {
+			return nil, fmt.Errorf("nil packet encountered")
+		}
 
 		// Use the provided factory function to create a new Packet instance
-		pkt := newPacket()
-		if pkt == nil {
-			return nil, fmt.Errorf("newPacket() returned nil")
-		}
+		//pkt := newPacket()
+		//if pkt == nil {
+		//	return nil, fmt.Errorf("newPacket() returned nil")
+		//}
 
 		// Read timestamp (big-endian, 8 bytes)
 		var ts int64
@@ -99,8 +120,9 @@ func Read(r io.Reader, newPacket func() _packets.Packet) ([]_packets.Packet, err
 			return nil, err
 		}
 
+		packet.SetTimestamp(time.Unix(ts, 0))
 		// Set the timestamp in the packet
-		basePkt, ok := pkt.(interface{ SetTimestamp(time.Time) })
+		basePkt, ok := packet.(interface{ SetTimestamp(time.Time) })
 		if ok {
 			basePkt.SetTimestamp(time.Unix(ts, 0))
 		}
@@ -119,13 +141,13 @@ func Read(r io.Reader, newPacket func() _packets.Packet) ([]_packets.Packet, err
 		}
 
 		// Deserialize packet
-		err = pkt.Deserialize(packetBytes)
+		err = packet.Deserialize(packetBytes)
 		if err != nil {
 			return nil, err
 		}
 
 		// Append to packet slice
-		packets = append(packets, pkt)
+		packets = append(packets, packet)
 	}
 
 	return packets, nil
