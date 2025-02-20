@@ -46,6 +46,13 @@ func (h Header) Bytes() []byte {
 	return header
 }
 
+type Packet struct {
+	Type      uint16
+	Timestamp int64
+	Length    uint32
+	Data      []byte
+}
+
 // Write writes packets to a .pkt file.
 func Write(w io.Writer, packets []_packets.Packet) error {
 	// Write the header (big-endian)
@@ -113,7 +120,7 @@ func Read(r io.Reader) ([]_packets.Packet, error) {
 	if err := binary.Read(r, binary.LittleEndian, &header.Version); err != nil {
 		return nil, err
 	}
-	if err := binary.Read(r, binary.LittleEndian, &header.Endian); err != nil {
+	if err := binary.Read(r, binary.BigEndian, &header.Endian); err != nil {
 		return nil, err
 	}
 
@@ -123,7 +130,7 @@ func Read(r io.Reader) ([]_packets.Packet, error) {
 		return nil, err
 	}
 
-	if err := binary.Read(r, binary.LittleEndian, &header.Length); err != nil {
+	if err := binary.Read(r, binary.BigEndian, &header.Length); err != nil {
 		return nil, err
 	}
 
@@ -131,51 +138,48 @@ func Read(r io.Reader) ([]_packets.Packet, error) {
 	if header.MagicNumber != MagicNumber {
 		return nil, fmt.Errorf("invalid magic number")
 	}
-	if header.Endian != LittleEndianFlag {
-		return nil, fmt.Errorf("unsupported endianness (expected little-endian)")
+	if header.Endian != BigEndianFlag {
+		return nil, fmt.Errorf("unsupported endianness (expected big-endian)")
 	}
 
 	packetCount := header.Length
 	packets := make([]_packets.Packet, 0, packetCount)
 
 	for i := uint32(0); i < packetCount; i++ {
-		var packetLen uint32
-		var packetType uint16
+		var packet _packets.Packet
+		var pkt_packet Packet
 
 		// Read packet type
-		if err := binary.Read(r, binary.BigEndian, &packetType); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &pkt_packet.Type); err != nil {
 			return nil, err
 		}
 
-		var packet _packets.Packet
-		switch packetType {
+		switch pkt_packet.Type {
 		case _packets.ARPCODE:
 			packet = arp.NewPacket()
 		default:
-			return nil, fmt.Errorf("unknown packet type: %d", packetType)
+			return nil, fmt.Errorf("unknown packet type: %d", pkt_packet.Type)
 		}
 
 		// Read timestamp
-		var ts int64
-		if err := binary.Read(r, binary.BigEndian, &ts); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &pkt_packet.Timestamp); err != nil {
 			return nil, err
 		}
 
-		packet.SetTimestamp(time.Unix(ts, 0))
-
 		// Read packet length
-		if err := binary.Read(r, binary.BigEndian, &packetLen); err != nil {
+		if err := binary.Read(r, binary.BigEndian, &pkt_packet.Length); err != nil {
 			return nil, err
 		}
 
 		// Read packet data
-		packetBytes := make([]byte, packetLen)
-		if _, err := io.ReadFull(r, packetBytes); err != nil {
+		if _, err := io.ReadFull(r, pkt_packet.Data); err != nil {
 			return nil, err
 		}
 
+		packet.SetTimestamp(time.Unix(pkt_packet.Timestamp, 0))
+
 		// Deserialize packet
-		if err := packet.Deserialize(packetBytes); err != nil {
+		if err := packet.Deserialize(pkt_packet.Data); err != nil {
 			return nil, err
 		}
 
